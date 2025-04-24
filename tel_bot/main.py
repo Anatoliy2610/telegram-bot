@@ -3,7 +3,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
-from models import OrderModel
+from tel_bot.models import OrderModel
 
 
 load_dotenv()
@@ -21,8 +21,8 @@ urls = {
     'href_organization': f"https://api.moysklad.ru/api/remap/1.2/entity/organization/{ORGANIZATION_ID}",
     'get_product': 'https://api.moysklad.ru/api/remap/1.2/entity/product',
     'get_employee': 'https://api.moysklad.ru/api/remap/1.2/context/employee',
-    'post_product': 'https://api.moysklad.ru/api/remap/1.2/entity/customerorder',
-    'group_products': 'https://api.moysklad.ru/api/remap/1.2/entity/productfolder',
+    'customerorder': 'https://api.moysklad.ru/api/remap/1.2/entity/customerorder',
+    'productfolder': 'https://api.moysklad.ru/api/remap/1.2/entity/productfolder',
     'get_assortment': 'https://api.moysklad.ru/api/remap/1.2/entity/assortment?filter=productFolder=https://api.moysklad.ru/api/remap/1.2/entity/productfolder/',
 }
 
@@ -42,36 +42,49 @@ def get_all_product():
         products['salePrices'] = product.get('salePrices')[0].get('value')
         products['images'] = product.get('images').get('meta').get('href')
         filter_prodicts.append(products)
-    return filter_prodicts
+    if response.status_code == 200:
+        return filter_prodicts
+    return {'status_code': response.status_code}
 
 
-@app.get('/group_products')
-def get_group_products():
-    response = requests.get(url=(urls['group_products']), headers=headers)
-    group_products = response.json()
-    result = []
-    for group in group_products['rows']:
-        group_data = {}
-        group_data['href'] = group.get('meta').get('href')
-        group_data['id'] = group.get('id')
-        group_data['name'] = group.get('name')
-        group_data['description'] = group.get('description')
-        result.append(group_data)
-    return result
+@app.get('/productfolder')
+def get_productfolder():
+    response = requests.get(url=(urls['productfolder']), headers=headers)
+    if response.status_code == 200:
+        group_products = response.json()
+        result = []
+        for group in group_products['rows']:
+            group_data = {}
+            group_data['href'] = group.get('meta').get('href')
+            group_data['id'] = group.get('id')
+            group_data['name'] = group.get('name')
+            group_data['description'] = group.get('description')
+            result.append(group_data)
+        return result
+    return {'status_code': response.status_code}
 
 
-def get_filter_products(json_rows):
-    result = []
-    for product in json_rows:
-        products = {}
-        products['id'] = product.get('id')
-        products['name'] = product.get('name')
-        products['description'] = product.get('description')
-        products['code'] = product.get('code')
-        products['pathName'] = product.get('pathName')
-        products['salePrices'] = product.get('salePrices')[0].get('value')
-        products['images'] = [prod.get('miniature', {}).get('downloadHref', '') for prod in product.get('images', {}).get('rows', {})]
-        result.append(products)
+
+def get_filter_products(json_response):
+    result = {}
+    result['meta'] = {
+        'size': json_response.get('meta').get('size'),
+        'limit': json_response.get('meta').get('limit'),
+        'offset': json_response.get('meta').get('offset'),
+    }
+
+    producs = []
+    for data_product in json_response.get('rows'):
+        product = {}
+        product['id'] = data_product.get('id')
+        product['name'] = data_product.get('name')
+        product['description'] = data_product.get('description')
+        product['code'] = data_product.get('code')
+        product['pathName'] = data_product.get('pathName')
+        product['salePrices'] = data_product.get('salePrices')[0].get('value')
+        product['images'] = [prod.get('miniature', {}).get('downloadHref', '') for prod in product.get('images', {}).get('rows', {})]
+        producs.append(product)
+    result['products'] = producs
     return result
 
 
@@ -85,19 +98,25 @@ def get_product(id_group=None, search=None, limit=5, offset=0):
     }
     if search:
         response = requests.get(url=urls['get_product'], params=params, headers=headers)
-        get_products = response.json()
-        return get_filter_products(get_products.get('rows'))
+        if response.status_code == 200:
+            get_products = response.json()
+            return get_filter_products(get_products)
+        return {'status_code': response.status_code}
     if id_group:
         response = requests.get(url=urls['get_assortment'], params=params, headers=headers)
-        get_products = response.json()
-        return get_filter_products(get_products.get('rows'))
+        if response.status_code == 200:
+            get_products = response.json()
+            return get_filter_products(get_products)
+        return {'status_code': response.status_code}
     response = requests.get(url=urls['get_product'], params=params, headers=headers)
-    get_products = response.json()
-    return get_filter_products(get_products.get('rows'))
+    if response.status_code == 200:
+        get_products = response.json()
+        return get_filter_products(get_products)
+    return {'status_code': response.status_code}
 
 
 @app.post('/product_order')
-def get_order(data: OrderModel):
+def customerorder(data: OrderModel):
     VALUE_DATA = {
         'organization': {
             "meta": {
@@ -121,13 +140,15 @@ def get_order(data: OrderModel):
                             "quantity": item.counter,
                             "assortment": {
                                 "meta": {
-                                    "href": 'https://api.moysklad.ru/api/remap/1.2/entity/product/' + item.id_prod,
+                                    "href": f'{urls.get("get_product")}/' + item.id_prod,
                                     "type": "product",
                                     "mediaType": "application/json"
                                     }
                                 }
                             })
 
-    response = requests.post(url=urls['post_product'], headers=headers, data=json.dumps(VALUE_DATA))
-    return response.json()
+    response = requests.post(url=urls['customerorder'], headers=headers, data=json.dumps(VALUE_DATA))
+    if response.status_code == 200:
+        return response.json()
+    return {'status_code': response.status_code}
 
