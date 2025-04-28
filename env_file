@@ -1,3 +1,5 @@
-MY_TOKEN=''
+MY_TOKEN_MS=''
 USER_ID=''
 ORGANIZATION_ID=''
+SQL_BD_URL=sqlite:///./DB.db
+SECRET_KEY_TOKEN=''
