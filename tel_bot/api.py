@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 import requests
 import json
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -8,9 +8,9 @@ from typing import List
 
 from tel_bot.contants import urls, headers, VALUE_DATA
 from tel_bot.utils import get_db, get_status_code, get_filter_products
-from tel_bot.models import OrderModel, User, UserCreate, UserInDB, UserModel
+from tel_bot.models import OrderModel, User, UserCreate, UserInDB, UserModel, CartModel, Cart
 from tel_bot.users.pass_conf import hash_password, verify_password
-from tel_bot.users.token_jwt import create_access_token
+from tel_bot.users.token_jwt import create_access_token, get_current_user
 
 router = APIRouter()
 
@@ -132,3 +132,26 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         raise HTTPException(status_code=401, detail="Неверное имя пользователя или пароль")
     access_token = create_access_token(data={"sub": db_user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+
+@router.post("/cart/add")
+async def add_to_cart(user_id: int, product_id: str, product_count: int, db: Session = Depends(get_db)):
+    db_product = CartModel(
+        user_id=user_id,
+        product_id=product_id,
+        product_count = product_count,
+        )
+    db.add(db_product)
+    db.commit()
+    db.refresh(db_product)
+    return {'Добавлено': {
+        'user_id': user_id,
+        'product_id': product_id,
+        'product_count': product_count,
+    }}
+
+
+@router.get("/cart", response_model=List[Cart])
+async def get_cart(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(CartModel).filter(CartModel.user_id == current_user.id).all()
