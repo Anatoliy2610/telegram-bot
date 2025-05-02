@@ -1,19 +1,10 @@
-from tel_bot.database import SessionLocal
 from fastapi import HTTPException
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_status_code(status_code, message, result):
-    if status_code == 200:
-        return result
-    return HTTPException(status_code=404, detail=message)
+def get_data_or_exception(status_code, message, data):
+    if status_code != 200:
+        HTTPException(status_code, detail=message)
+    return data
 
 
 def get_filter_products(json_response):

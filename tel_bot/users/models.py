@@ -1,18 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from typing import List
 from sqlalchemy import Column, Integer, String, ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 from tel_bot.database import Base
-
-
-class OrderModelBase(BaseModel):
-    id_prod: str
-    counter: int
-
-
-class OrderModel(BaseModel):
-    items: List[OrderModelBase]
 
 
 class User(BaseModel):
@@ -32,6 +23,11 @@ class UserCreate(BaseModel):
     password: str
 
 
+class UserAuth(BaseModel):
+    username: str
+    password: str
+
+
 class UserModel(Base):
     '''
     __tablename__ - имя таблицы
@@ -47,21 +43,6 @@ class UserModel(Base):
     hash_password = Column(String, nullable=True)
 
 
-class Cart(BaseModel):
-    user_id: int
-    product_id: str
-    product_count: int
-
-
-class CartModel(Base):
-    __tablename__ = 'carts'
-
-    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
-    product_id = Column(String, primary_key=True)
-    product_count = Column(Integer)
-       
-    product = relationship("UserModel")
-
-    __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'product_id'),
-       )
+class UserAuthModel(BaseModel):
+    username: str = Field(..., description="имя пользователя")
+    password: str = Field(..., min_length=5, max_length=50, description="Пароль, от 5 до 50 знаков")

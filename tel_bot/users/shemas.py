@@ -16,3 +16,10 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+
+
+class UserRegister(BaseModel):
+    username: str
+    email: str
+    full_name: str
+    password: str
