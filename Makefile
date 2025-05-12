@@ -6,3 +6,6 @@ install:
 
 freeze:
 	pip freeze > requirements.txt
+
+test:
+	pytest -v -s

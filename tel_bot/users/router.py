@@ -38,13 +38,12 @@ async def register_user(user_data: UserRegister, db: Session = Depends(get_db)) 
 @router.post("/login/")
 async def auth_user(response: Response, user_data: UserAuthModel, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == user_data.username).first()
-    check_pass = verify_password(user_data.password, user.hash_password)
-    if user is None and not check_pass:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail='Неверное имя пользователя или пароль'
-                            )
+    if user is None or not verify_password(user_data.password, user.hash_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Неверное имя пользователя или пароль'
+        )
     access_token = create_access_token({"sub": str(user.id)})
-    response.set_cookie(key="users_access_token", value=access_token, httponly=True)
     return {'access_token': access_token, 'refresh_token': None}
 
 

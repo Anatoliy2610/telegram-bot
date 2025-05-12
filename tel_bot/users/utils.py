@@ -1,6 +1,6 @@
 from tel_bot.database import SessionLocal
 from passlib.context import CryptContext
-from fastapi import Depends
+from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 from fastapi import Request, HTTPException, status, Depends
 from datetime import datetime, timedelta, timezone
@@ -36,35 +36,23 @@ async def authenticate_user(username: str, password: str, db: Session = Depends(
     return user
 
 
-def get_token(request: Request):
-    token = request.cookies.get('users_access_token')
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Пользователь не зашёл в систему')
-    return token
-
-
 def get_auth_data():
     return {"secret_key": SECRET_KEY_TOKEN, "algorithm": ALGORITHM}
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now() + expires_delta
-    else:
-        expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    auth_data = get_auth_data()
-    encode_jwt = jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
-    return encode_jwt
-
-
-async def get_current_user(token: str = Depends(get_token), db: Session = Depends(get_db)):
+async def get_current_user(authorization: str = Header(None), db: Session = Depends(get_db)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail='не авторизован')
     try:
         auth_data = get_auth_data()
-        payload = jwt.decode(token, auth_data['secret_key'], algorithms=[auth_data['algorithm']])
+        token_type, access_token = authorization.split()
+        payload = jwt.decode(access_token, auth_data['secret_key'], algorithms=[auth_data['algorithm']])
+    except ValueError:
+        raise HTTPException(status_code=401, detail='неправильный заголовок')
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Токен не валидный!')
+    if token_type != 'Bearer':
+        raise HTTPException(status_code=401, detail='неправильный тип')
     expire = payload.get('exp')
     expire_time = datetime.fromtimestamp(int(expire), tz=timezone.utc)
     if (not expire) or (expire_time < datetime.now(timezone.utc)):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -22,4 +22,4 @@ class UserRegister(BaseModel):
     username: str
     email: str
     full_name: str
-    password: str
+    password: str = Field(..., min_length=4, max_length=50, description="Пароль, от 4 до 50 знаков")
